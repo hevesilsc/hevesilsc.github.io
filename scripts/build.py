@@ -4,12 +4,12 @@ Kimenet: data/klub.json   Futtatás: python3 -u scripts/build.py data/klub.json"
 import re, html, json, time, subprocess, sys, datetime
 
 def get(url):
-    for _ in range(3):
+    for _ in range(8):
         r = subprocess.run(['curl', '-sS', '-L', '--max-time', '30', url], capture_output=True)
         if r.returncode == 0 and r.stdout:
             time.sleep(0.5)
             return r.stdout.decode('utf8', 'ignore')
-        time.sleep(3)
+        time.sleep(8)
     raise SystemExit('nem érhető el: ' + url)
 
 
