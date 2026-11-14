@@ -2,7 +2,7 @@ name: Frissítés és közzététel
 
 on:
   schedule:
-    - cron: "40 5 */2 * *"   # kétnaponta, kb. 6:40 / 7:40 magyar idő szerint
+    - cron: "47 19 * * *"     # minden este, kb. 20:47 (télen) / 21:47 (nyáron) magyar idő szerint
   workflow_dispatch: {}       # kézi indítás: Actions fül → Run workflow
   push:
     branches: [main]
