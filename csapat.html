@@ -261,9 +261,9 @@ let TEAMS={};   // bajnoki csapatkód → {short,long,minYear,squad} – a klub.
 const SQUADS=[["FELNOTT","Felnőtt"],["F3","Felnőtt II."],["U21","U21"],["U17","U17"],["U16","U16"],["U15","U15"],["U14","U14"],["U13","U13"],["U12","U12"],["NOI","Női"]];
 const SQN=Object.fromEntries(SQUADS);
 const SQUAD_OF={F2:"FELNOTT",KUPA:"FELNOTT",MAKL:"FELNOTT",U14R:"U14",U14H:"U14",U13R:"U13",U13H:"U13"};
-const sqOf=c=>SQUAD_OF[c]||c;
+const sqOf=c=>{const m=/^FU(\d+)/.exec(c);return m?"U"+m[1]:SQUAD_OF[c]||c};   // futsal: ugyanaz a korosztály
 const HELP={U13:["U12"],U14:["U13"],U15:["U14"],U16:["U15"],U17:["U16"],U21:["U17"],F3:["U21"],FELNOTT:["F3","U21"]};   // fiatalabb kisegítő korosztályok
-const HUE={F2:150,F3:120,KUPA:95,MAKL:70,U21:200,U17:225,U16:250,U15:275,U14R:300,U14H:325,U13R:20,U13H:40,U12:0,NOI:180};
+const HUE={F2:150,F3:120,KUPA:95,MAKL:70,U21:200,U17:225,U16:250,U15:275,U14R:300,U14H:325,U13R:20,U13H:40,U12:0,NOI:180,FU17:228,FU17B:232,FU15:268,FU15B:282,FU13:28,FU13B:48};
 const minYearOf=sq=>{const m=/^U(\d+)$/.exec(sq);return m?2027-Number(m[1]):0};
 const VT=()=>Object.keys(TEAMS).filter(c=>S.view.includes(TEAMS[c].squad));
 const inView=m=>S.view.includes(TEAMS[m.team]?.squad);
@@ -292,8 +292,16 @@ const FORM={
   "3-2-3":[["KAP",50,89],["BV",19,68],["KV",50,73],["JV",81,68],["KK",34,52],["KK",66,52],["BSZ",16,26],["CS",50,19],["JSZ",84,26]],
   "2-3-3":[["KAP",50,89],["BV",30,68],["JV",70,68],["BK",16,50],["KK",50,54],["JK",84,50],["BSZ",17,24],["CS",50,19],["JSZ",83,24]],
   "3-4-1":[["KAP",50,89],["BV",19,68],["KV",50,73],["JV",81,68],["BK",13,47],["KK",37,52],["KK",63,52],["JK",87,47],["CS",50,20]],
-  "4-3-1":[["KAP",50,89],["BV",13,68],["KV",37,73],["KV",63,73],["JV",87,68],["BK",22,48],["KK",50,52],["JK",78,48],["CS",50,21]]
+  "4-3-1":[["KAP",50,89],["BV",13,68],["KV",37,73],["KV",63,73],["JV",87,68],["BK",22,48],["KK",50,52],["JK",78,48],["CS",50,21]],
+  // futsal 4+1: rombusz (fixó, két szélső, pivot) és négyzet
+  "3-1":[["KAP",50,89],["KV",50,68],["BSZ",17,46],["JSZ",83,46],["CS",50,22]],
+  "2-2":[["KAP",50,89],["BV",28,66],["JV",72,66],["CS",32,30],["CS",68,30]]
 };
+const FUTSAL_FORM=new Set(["3-1","2-2"]);
+const isFutsal=m=>/^F[UL]/.test(m.team);
+const formsOf=m=>Object.keys(FORM).filter(k=>FUTSAL_FORM.has(k)===isFutsal(m));
+const defForm=m=>isFutsal(m)?"3-1":"3-3-2";
+const nStart=m=>FORM[defForm(m)].length;   // kezdők száma: 9 (8+1) vagy futsalban 5 (4+1)
 const WD=["vasárnap","hétfő","kedd","szerda","csütörtök","péntek","szombat"];
 const MON=["január","február","március","április","május","június","július","augusztus","szeptember","október","november","december"];
 const FOOT={jobb:"jobb lábas",bal:"bal lábas",mind:"kétlábas"};
@@ -523,10 +531,10 @@ function vLineup(){
   const {up,past}=lineMatches();
   if(!S.lineMatch||!mById(S.lineMatch))S.lineMatch=(up[0]||past[0]||{}).id;
   const m=mById(S.lineMatch);if(!m)return `<div class="empty">Nincs meccs a menetrendben.</div>`;
-  const lu=m.lineup||{f:"3-3-2",s:Array(9).fill("")},f=FORM[lu.f]?lu.f:"3-3-2",slots=FORM[f],ass=(lu.s||[]).slice(0,9);while(ass.length<9)ass.push("");
+  const lu=curLineup(m),f=lu.f,slots=FORM[f],ass=lu.s;
   const opt=m2=>{const d=dObj(m2.date);return `<option value="${m2.id}" ${m2.id===m.id?"selected":""}>${d.getMonth()+1}.${String(d.getDate()).padStart(2,"0")}. ${TEAMS[m2.team].short} – ${esc(m2.opp)}</option>`};
   let h=`<div class="toolbar"><label class="field" style="flex:1;min-width:220px">Meccs<select id="lineMatch" data-act="lineMatch"><optgroup label="Következő">${up.map(opt).join("")}</optgroup><optgroup label="Lejátszott">${past.map(opt).join("")}</optgroup></select></label>
-    <label class="field">Formáció (8+1)<select id="lineForm" data-act="lineForm" ${S.canWrite?"":"disabled"}>${Object.keys(FORM).map(k=>`<option ${k===f?"selected":""}>${k}</option>`).join("")}</select></label></div>`;
+    <label class="field">Formáció (${isFutsal(m)?"4+1":"8+1"})<select id="lineForm" data-act="lineForm" ${S.canWrite?"":"disabled"}>${formsOf(m).map(k=>`<option ${k===f?"selected":""}>${k}</option>`).join("")}</select></label></div>`;
   const cands=candidates(m),usingSel=(m.sel||[]).length>0;
   if(!usingSel)h+=`<div class="note" style="margin-bottom:12px">Ehhez a meccshez még nincs kijelölt keret, ezért a teljes ${esc(SQN[TEAMS[m.team].squad]||"")} keretből javaslok. <button class="btn" data-act="openMatch" data-id="${m.id}" style="margin-left:6px">Keret kijelölése</button></div>`;
   // pálya
@@ -585,7 +593,7 @@ function renderMatchDlg(){
     ${m.note?`<div class="small muted">${esc(m.note)}</div>`:""}</div><button class="x" data-act="closeDlg" aria-label="Bezárás">×</button></header><div class="body">
     ${reportHtml(m)}
     <div class="fields"><label class="field">Eredmény (Heves–ellenfél)<input id="mRes" data-act="mRes" value="${esc(m.res||"")}" placeholder="pl. 3–2" ${S.canWrite?"":"disabled"}></label></div>
-    <div><div class="row" style="justify-content:space-between"><h3>${official(m)?"Saját kijelölés":"Meccskeret"} · ${sel.length} fő</h3><span class="small muted">${sel.length>9?`9 kezdő + ${sel.length-9} csere`:sel.length<9?`még ${9-sel.length} kell a kezdőhöz`:"pont 9 fő"}</span></div>
+    <div><div class="row" style="justify-content:space-between"><h3>${official(m)?"Saját kijelölés":"Meccskeret"} · ${sel.length} fő</h3><span class="small muted">${(k=>sel.length>k?`${k} kezdő + ${sel.length-k} csere`:sel.length<k?`még ${k-sel.length} kell a kezdőhöz`:`pont ${k} fő`)(nStart(m))}</span></div>
     <div class="small muted" style="margin:2px 0 6px">${T.minYear?`A ${T.minYear}-ben vagy később születettek játszhatnak. `:""}A fiatalabb korosztályból beírt játékos kisegítőként számít.</div><div class="pick">`;
   for(const sq of order){
     const ps=sortPlayers(S.players.filter(p=>p.squad===sq));if(!ps.length)continue;
@@ -717,7 +725,7 @@ async function importFile(file){
 }
 
 /* ---------- felállás műveletek ---------- */
-function curLineup(m){const lu=m.lineup||{};const s=(lu.s||[]).slice(0,9);while(s.length<9)s.push("");return {f:FORM[lu.f]?lu.f:"3-3-2",s}}
+function curLineup(m){const lu=m.lineup||{};const f=formsOf(m).includes(lu.f)?lu.f:defForm(m),n=FORM[f].length;const s=(lu.s||[]).slice(0,n);while(s.length<n)s.push("");return {f,s}}
 function autoFill(m){
   const lu=curLineup(m),slots=FORM[lu.f];
   const empty=lu.s.map((v,i)=>v?null:i).filter(i=>i!==null);
@@ -761,7 +769,7 @@ document.addEventListener("click",e=>{
   else if(a==="assign"){const m=mById(S.lineMatch),lu=curLineup(m);const prev=lu.s.indexOf(id);if(prev>=0)lu.s[prev]=lu.s[S.slot]&&prev!==S.slot?lu.s[S.slot]:"";lu.s[S.slot]=id;S.slot=null;saveMatch(m.id,{lineup:lu});}
   else if(a==="clearSlot"){const m=mById(S.lineMatch),lu=curLineup(m);lu.s[S.slot]="";S.slot=null;saveMatch(m.id,{lineup:lu});}
   else if(a==="autoFill")autoFill(mById(S.lineMatch));
-  else if(a==="clearAll"){const m=mById(S.lineMatch),lu=curLineup(m);lu.s=Array(9).fill("");saveMatch(m.id,{lineup:lu});}
+  else if(a==="clearAll"){const m=mById(S.lineMatch),lu=curLineup(m);lu.s=Array(lu.s.length).fill("");saveMatch(m.id,{lineup:lu});}
 });
 document.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.matches?.(".slot")){e.preventDefault();e.target.dispatchEvent(new MouseEvent("click",{bubbles:true}));}});
 document.addEventListener("change",e=>{
@@ -799,7 +807,7 @@ function buildMatches(){
       const res=f.st==="played"?(home?f.hg+"–"+f.ag:f.ag+"–"+f.hg):(row?.res||"");
       const conv=a=>(a||[]).map(x=>({...x,p:byMlsz[x.id]||""}));
       S.matches.push({id:key,team:c,date:f.d,time:f.t,home,opp:home?f.a:f.h,venue:f.v,note:row?.note||"",res,manualRes:row?.res||"",
-        sel:row?.sel||[],lineup:row?.lineup||{f:"3-3-2",s:Array(9).fill("")},
+        sel:row?.sel||[],lineup:row?.lineup||{f:defForm({team:c}),s:Array(nStart({team:c})).fill("")},
         mlsz:rep?{status:"played",url:rep.url,start:conv(rep.start),subs:conv(rep.subs)}:{status:f.st,url:f.u||""}});}}
 }
 async function loadPhotos(){

@@ -185,7 +185,7 @@ table.wk th.today{color:var(--accent)} table.wk td.today{background:var(--accent
   <div class="wrap">
     <div class="brand">
       <h1>NEO24-Hevesi LSC <span>meccsek</span></h1>
-      <div class="sub">2026/2027 · 14 csapat</div>
+      <div class="sub">2026/2027 · <span id="tcount">14</span> csapat</div>
       <div class="sub" id="syncinfo"></div>
       <a class="sub" href="edzok.html" style="margin-left:auto;color:var(--accent);font-weight:600">Edzőknek →</a>
     </div>
@@ -203,8 +203,8 @@ table.wk th.today{color:var(--accent)} table.wk td.today{background:var(--accent
 "use strict";
 
 
-const ORDER=["F2","F3","KUPA","MAKL","U21","U17","U16","U15","U14R","U14H","U13R","U13H","U12","NOI"];
-const HUE={F2:150,F3:120,KUPA:95,MAKL:70,U21:200,U17:225,U16:250,U15:275,U14R:300,U14H:325,U13R:20,U13H:40,U12:0,NOI:180};
+const ORDER=["F2","F3","KUPA","MAKL","U21","U17","U16","U15","U14R","U14H","U13R","U13H","U12","NOI","FU17","FU17B","FU15","FU15B","FU13","FU13B"];
+const HUE={F2:150,F3:120,KUPA:95,MAKL:70,U21:200,U17:225,U16:250,U15:275,U14R:300,U14H:325,U13R:20,U13H:40,U12:0,NOI:180,FU17:228,FU17B:232,FU15:268,FU15B:282,FU13:28,FU13B:48};
 const ADULT=["F2","F3","KUPA","MAKL"];
 const PITCHES=[
   {id:"mufu",n:"Nagy műfüves pálya",halves:true,info:"A legtöbb edzés és hazai meccs helye. Edzésre kettéosztható: egyszerre két csapat használhatja."},
@@ -236,13 +236,15 @@ const short=d=>{const x=dObj(d);return (x.getMonth()+1)+"."+pad(x.getDate())+"."
 let toastT;function toast(m){const t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,3500)}
 const team=c=>S.teams[c]||{name:c};
 const tchip=c=>`<span class="tchip" style="--h:${HUE[c]??160}">${esc(team(c).name||c)}</span>`;
-const teamCodes=()=>ORDER.filter(c=>S.teams[c]);
+const teamCodes=()=>[...ORDER.filter(c=>S.teams[c]),...Object.keys(S.teams).filter(c=>!ORDER.includes(c))];
 
 /* ---------- meccsek ---------- */
 function ourScore(t,f){if(f.st!=="played")return null;const home=f.hid===t.tid;return home?[f.hg,f.ag]:[f.ag,f.hg]}
 function resHtml(t,f){const s=ourScore(t,f);if(!s)return f.st==="postponed"?`<span class="chip">elmaradt</span>`:"";const c=s[0]>s[1]?"w":s[0]<s[1]?"l":"d";return `<span class="res ${c}">${s[0]}–${s[1]}</span>`}
-function allFixtures(){const out=[];for(const c of teamCodes()){const t=S.teams[c];for(const f of t.fixtures||[])out.push({c,t,f});}return out.sort((a,b)=>(a.f.d+a.f.t).localeCompare(b.f.d+b.f.t))}
-const opp=(t,f)=>f.hid===t.tid?f.a:f.h;
+function allFixtures(egyszer=true){const out=[],own=new Set(teamCodes().map(c=>S.teams[c].tid));for(const c of teamCodes()){const t=S.teams[c];for(const f of t.fixtures||[]){if(egyszer&&f.aid===t.tid&&own.has(f.hid))continue;out.push({c,t,f});}}return out.sort((a,b)=>(a.f.d+a.f.t).localeCompare(b.f.d+b.f.t))}
+const nev=n=>String(n||"").replace(/^NEO24-/,"").replace(/ l\.$/," I.").replace(/ ll\.$/," II.");
+const opp=(t,f)=>nev(f.hid===t.tid?f.a:f.h);
+const us=(t,f)=>/hevesi lsc/i.test(opp(t,f))?nev(f.hid===t.tid?f.h:f.a):"Hevesi LSC";
 const isHome=(t,f)=>f.hid===t.tid;
 
 /* ---------- tabella ---------- */
@@ -296,7 +298,7 @@ function vWeek(){
 }
 function vMatches(){
   const t0=todayStr();
-  let list=allFixtures().filter(x=>(S.mTeam==="ALL"||x.c===S.mTeam)&&(S.mWhen==="next"?x.f.d>=t0&&x.f.st!=="played":x.f.st==="played"));
+  let list=allFixtures(S.mTeam==="ALL").filter(x=>(S.mTeam==="ALL"||x.c===S.mTeam)&&(S.mWhen==="next"?x.f.d>=t0&&x.f.st!=="played":x.f.st==="played"));
   if(S.mWhen==="past")list.reverse();
   let h=`<div class="toolbar"><select class="fsel" id="mTeam" data-act="mTeam" aria-label="Csapat"><option value="ALL">Minden csapat</option>${teamCodes().map(c=>`<option value="${c}" ${S.mTeam===c?"selected":""}>${esc(team(c).name)}</option>`).join("")}</select>
     <div class="seg" role="group">${[["next","Következő"],["past","Lejátszott"]].map(([k,l])=>`<button data-act="mWhen" data-v="${k}" aria-pressed="${S.mWhen===k}">${l}</button>`).join("")}</div></div>`;
@@ -328,7 +330,7 @@ function vTables(){
 }
 
 
-function fxRow({c,t,f}){const d=dObj(f.d);return `<div class="m"><div class="d"><b>${d.getDate()}</b><span>${WS[d.getDay()]}</span></div><div style="min-width:0"><div class="o">${isHome(t,f)?"Hevesi LSC – "+esc(opp(t,f)):esc(opp(t,f))+" – Hevesi LSC"}</div>
+function fxRow({c,t,f}){const d=dObj(f.d);return `<div class="m"><div class="d"><b>${d.getDate()}</b><span>${WS[d.getDay()]}</span></div><div style="min-width:0"><div class="o">${isHome(t,f)?esc(us(t,f))+" – "+esc(opp(t,f)):esc(opp(t,f))+" – "+esc(us(t,f))}</div>
       <div class="meta">${tchip(c)} ${esc(f.t)} · ${esc(f.v)}</div></div><div>${resHtml(t,f)}</div></div>`}
 function render(){
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.tab===S.tab)));
@@ -352,7 +354,7 @@ document.addEventListener("change",e=>{const t=e.target;
 render();
 fetch("data/klub.json",{cache:"no-cache"}).then(r=>{if(!r.ok)throw 0;return r.json()}).then(F=>{
   for(const [c,t] of Object.entries(F.teams)){const {leagueMatches,official,...rest}=t;S.teams[c]=rest;if(t.table)S.leagues[c]={matches:leagueMatches||[],official:official||[]};}
-  S.tLoaded=true;S.at=F.at;$("#syncinfo").textContent="· Frissítve: "+F.at.replace(/-/g,". ")+".";render();
+  S.tLoaded=true;S.at=F.at;$("#tcount").textContent=Object.keys(S.teams).length;$("#syncinfo").textContent="· Frissítve: "+F.at.replace(/-/g,". ")+".";render();
 }).catch(()=>{S.err=true;render();});
 </script>
 </body>

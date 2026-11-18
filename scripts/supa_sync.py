@@ -7,13 +7,17 @@
 Kell hozzá: SUPABASE_URL és SUPABASE_SECRET_KEY környezeti változó. Ha nincs kulcs, nem csinál semmit."""
 import os, re, sys, json, html, datetime, subprocess, urllib.request, urllib.error, urllib.parse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from build import get, clean, TEAMS
+from build import get, clean, osszes_csapat
 
 URL = os.environ.get('SUPABASE_URL', '').rstrip('/')
 KEY = os.environ.get('SUPABASE_SECRET_KEY', '')
 SQUAD_OF = {'F2': 'FELNOTT', 'KUPA': 'FELNOTT', 'MAKL': 'FELNOTT', 'U14R': 'U14', 'U14H': 'U14', 'U13R': 'U13', 'U13H': 'U13'}
 PRIO = ['U12', 'U13', 'U14', 'U15', 'U16', 'U17', 'U21', 'FELNOTT', 'F3', 'NOI']   # több keretben: a legfiatalabb nyer
-sq = lambda c: SQUAD_OF.get(c, c)
+
+
+def sq(c):
+    m = re.match(r'^FU(\d+)', c)                # futsal: ugyanaz a korosztály, mint a nagypályán
+    return 'U' + m.group(1) if m else SQUAD_OF.get(c, c)
 PHOTO = {}   # mlsz játékos-id → igazolványkép URL (a player_stats tölti, az adatlapról)
 NOW = ''
 
@@ -110,9 +114,12 @@ def main():
     today = datetime.date.today().isoformat()
     global NOW
     NOW = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    TEAMS = osszes_csapat()
     # 1) csapatkeretek
     roster = {}
     for code, name, org, comp, tid, lname, dur, tab in TEAMS:
+        if sq(code) not in PRIO:      # pl. futsal leány: nincs hozzá korosztály a Csapatomban
+            continue
         t = get(f'https://adatbank.mlsz.hu/club/67/{org}/{comp}/1/{tid}.html')
         for pid in set(re.findall(r'adatbank\.mlsz\.hu/player/(\d+)\.html', t)):
             roster.setdefault(pid, set()).add(sq(code))
@@ -164,7 +171,11 @@ def main():
             key = f'{code}|{f["d"]}' + (f'#{seen[f["d"]]}' if seen[f['d']] > 1 else '')
             if f.get('st') != 'played' or not f.get('u') or key in done:
                 continue
-            lu = lineup(f['u'], tid)
+            try:
+                lu = lineup(f['u'], tid)
+            except (AttributeError, IndexError) as e:   # pl. eltérő futsal-jegyzőkönyv: ezt az egyet kihagyjuk
+                print('Jegyzőkönyv nem olvasható:', f['u'], e, file=sys.stderr)
+                continue
             if not lu:
                 continue
             conv = lambda arr: [{'id': x['pid'], 'num': x['num'], 'n': x['name'].title(),

@@ -212,8 +212,8 @@ html{color-scheme:light}body{margin:0}:root{padding-top:env(safe-area-inset-top,
 <div class="toast" id="toast" hidden></div>
 <script>
 "use strict";
-const ORDER=["F2","F3","KUPA","MAKL","U21","U17","U16","U15","U14R","U14H","U13R","U13H","U12","NOI"];
-const HUE={KAPUS:55,EGYENI:195,F2:150,F3:120,KUPA:95,MAKL:70,U21:200,U17:225,U16:250,U15:275,U14R:300,U14H:325,U13R:20,U13H:40,U12:0,NOI:180};
+const ORDER=["F2","F3","KUPA","MAKL","U21","U17","U16","U15","U14R","U14H","U13R","U13H","U12","NOI","FU17","FU17B","FU15","FU15B","FU13","FU13B"];
+const HUE={KAPUS:55,EGYENI:195,F2:150,F3:120,KUPA:95,MAKL:70,U21:200,U17:225,U16:250,U15:275,U14R:300,U14H:325,U13R:20,U13H:40,U12:0,NOI:180,FU17:228,FU17B:232,FU15:268,FU15B:282,FU13:28,FU13B:48};
 const ADULT=["F2","F3","KUPA","MAKL","FELNOTT"];
 const PITCHES=[
   {id:"mufu",n:"Nagy műfüves pálya",halves:true,info:"A legtöbb edzés és hazai meccs helye. Edzésre kettéosztható: egyszerre két csapat használhatja."},
@@ -248,12 +248,12 @@ const PSEUDO={KAPUS:{name:"Kapusedzés"},EGYENI:{name:"Egyéni edzés"}};
 const SQUADS=[["FELNOTT","Felnőtt"],["F3","Felnőtt II."],["U21","U21"],["U17","U17"],["U16","U16"],["U15","U15"],["U14","U14"],["U13","U13"],["U12","U12"],["NOI","Női"]];
 const SQN=Object.fromEntries(SQUADS);
 const SQUAD_OF={F2:"FELNOTT",KUPA:"FELNOTT",MAKL:"FELNOTT",U14R:"U14",U14H:"U14",U13R:"U13",U13H:"U13"};
-const sq=c=>SQUAD_OF[c]||c;
+const sq=c=>{const m=/^FU(\d+)/.exec(c);return m?"U"+m[1]:SQUAD_OF[c]||c};   // futsal: ugyanaz a korosztály
 const squadCodes=()=>SQUADS.map(x=>x[0]);
 Object.assign(HUE,{FELNOTT:150,U14:310,U13:30});
 const team=c=>(SQN[c]?{...(S.teams[c]||{}),name:SQN[c]}:null)||S.teams[c]||PSEUDO[c]||{name:c};
 const tchip=c=>`<span class="tchip" style="--h:${HUE[c]??160}">${esc(team(c).name||c)}</span>`;
-const teamCodes=()=>ORDER.filter(c=>S.teams[c]);
+const teamCodes=()=>[...ORDER.filter(c=>S.teams[c]),...Object.keys(S.teams).filter(c=>!ORDER.includes(c))];
 
 /* ---------- meccsek ---------- */
 function ourScore(t,f){if(f.st!=="played")return null;const home=f.hid===t.tid;return home?[f.hg,f.ag]:[f.ag,f.hg]}

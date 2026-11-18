@@ -83,25 +83,77 @@ TEAMS=[ # kód, név, szervező, verseny, csapat-id, bajnokság neve, meccsidő 
  ('NOI','Női kispályás',13,34595,337945,'Női kispályás bajnokság',60,True),
 ]
 
+FUTSAL_PERC = 40   # futsal-tornameccs: a pályanaptár nem számol vele (sportcsarnokban játsszák)
+
+
+def futsal_csapatok():
+    """A klub futsal-csapatai az adatbankból, automatikusan.
+
+    A klub bármelyik csapatoldalán ott a „Megnézem a klub többi csapatát” lista: ebből a
+    Futsal-versenyeket vesszük, és a verseny első fordulójából a Hevesi LSC összes csapatát
+    (egy tornán gyakran két csapattal, I. és II. indul a klub). Így az újonnan kiírt futsal-
+    bajnokságok (pl. U17, U19) maguktól bekerülnek. Kód: FU13, a II. csapaté FU13B."""
+    _, _, org0, comp0, tid0, *_ = TEAMS[0]
+    lap = get(f'https://adatbank.mlsz.hu/club/67/{org0}/{comp0}/1/{tid0}.html')
+    out = []
+    for org, comp, cim in re.findall(r'<option\s+value="teamId=\d+&evad=67&szervezet=(\d+)&verseny=(\d+)&fordulo=\d+">([^<]*)', lap):
+        cim = html.unescape(cim).strip()
+        if 'futsal' not in cim.lower():
+            continue
+        csapatok = {}
+        for r in schedule_rows(get(f'https://adatbank.mlsz.hu/league/67/{org}/{comp}/1.html')):
+            for i, n in ((r['hid'], r['h']), (r['aid'], r['a'])):
+                if 'hevesi lsc' in n.lower():
+                    csapatok[i] = n
+        # I. előre, II. utána (az adatbank „l.”/„ll.” betűkkel is írja)
+        sor = sorted(csapatok.items(), key=lambda x: (len(re.sub(r'[^IVil]', '', x[1].split('LSC')[-1])), x[1]))
+        kor = re.search(r'U\s*(\d+)', cim)
+        leany = 'leány' in cim.lower()
+        alap = ('FL' if leany else 'FU') + (kor.group(1) if kor else comp)
+        for k, (tid, _) in enumerate(sor[:7]):
+            nev = 'Futsal ' + ('leány ' if leany else '') + (f'U{kor.group(1)}' if kor else cim)
+            if len(sor) > 1:
+                nev += ' ' + ('I' * (k + 1) if k < 3 else str(k + 1)) + '.'
+            kod = alap + ('' if k == 0 else 'BCDEFG'[k - 1])
+            if any(x[0] == kod for x in out):          # azonos korosztály két külön futsal-csoportban
+                kod += '_' + comp
+            out.append((kod, nev, int(org), int(comp), int(tid), cim, FUTSAL_PERC, True))
+    return out
+
+
+def osszes_csapat():
+    try:
+        fs = futsal_csapatok()
+    except Exception as e:      # ha az adatbank épp nem válaszol, a nagypályás csapatok akkor is frissüljenek
+        print('futsal-csapatok keresése sikertelen:', e, file=sys.stderr)
+        fs = []
+    return TEAMS + fs
+
+
 def run(out):
     res={'at':datetime.date.today().isoformat(),'teams':{}}
-    for code,name,org,comp,tid,lname,dur,tab in TEAMS:
+    ligak={}   # (szervező, verseny) → (meccsek, hivatalos tabella): egy bajnokságban két saját csapat is lehet
+    for code,name,org,comp,tid,lname,dur,tab in osszes_csapat():
         fx=[]
         for r in schedule_rows(get(f'https://adatbank.mlsz.hu/club/67/{org}/{comp}/1/{tid}.html')):
             fx.append({'d':r['date'],'t':r['time'],'h':r['h'],'a':r['a'],'hid':r['hid'],'aid':r['aid'],'hg':r['hg'],'ag':r['ag'],'st':r['st'],'v':r['venue'],'r':r['round'],'u':r['url']})
         lg=[];off=[]
-        if tab:
-            seen={};empty=0
+        if tab and (org,comp) in ligak:
+            lg,off=ligak[(org,comp)]
+        elif tab:
+            seen={};empty=0;torna='futsal' in lname.lower()
             for rnd in range(1,41):
                 new=0;page=get(f'https://adatbank.mlsz.hu/league/67/{org}/{comp}/{rnd}.html');off=best_table(off,official_table(page))
                 for r in schedule_rows(page):
-                    k=(r['hid'],r['aid']);rec={'d':r['date'],'h':r['h'],'a':r['a'],'hid':r['hid'],'aid':r['aid'],'hg':r['hg'],'ag':r['ag'],'st':r['st']}
+                    # futsal-tornán ugyanaz a páros többször is játszik: ott a dátum és az időpont is kulcs
+                    k=(r['hid'],r['aid'])+((r['date'],r['time']) if torna else ());rec={'d':r['date'],'h':r['h'],'a':r['a'],'hid':r['hid'],'aid':r['aid'],'hg':r['hg'],'ag':r['ag'],'st':r['st']}
                     o=seen.get(k)
                     if not o: new+=1
                     if not o or (o['st']!='played' and rec['st']=='played') or (o['st']=='postponed' and rec['st']=='scheduled'): seen[k]=rec
                 empty=empty+1 if new==0 else 0
                 if empty>=6: break
             lg=sorted(seen.values(),key=lambda x:(x['d'],x['h']))
+            ligak[(org,comp)]=(lg,off)
         res['teams'][code]={'name':name,'league':lname,'tid':str(tid),'dur':dur,'table':tab,'fixtures':fx,'leagueMatches':lg,'official':off}
         n=len({m['hid'] for m in lg}|{m['aid'] for m in lg})
         print(code,len(fx),'saját meccs,',sum(f['st']=='played' for f in fx),'lejátszva | bajnokság',len(lg),'meccs',n,'csapat |','hivatalos tabella' if off else 'számolt tabella',file=sys.stderr)
